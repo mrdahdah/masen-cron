@@ -45,9 +45,21 @@ APPLY = "--apply" in sys.argv
 ONLY = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--only=")), None)
 
 
-def sh(args, stdin=None, cwd=None, timeout=600):
-    r = subprocess.run(args, input=stdin, cwd=cwd, capture_output=True, text=True, encoding="utf-8", timeout=timeout, shell=os.name == "nt")
-    return r.returncode, (r.stdout or "") + (r.stderr or "")
+TRANSIENT = ("timeout", "tls handshake", "connection reset", "eof", "temporarily", "502", "503", "504")
+
+
+def sh(args, stdin=None, cwd=None, timeout=600, tries=5):
+    """Run a CLI; transient network failures (flaky TLS from this machine) are retried with backoff."""
+    for attempt in range(1, tries + 1):
+        try:
+            r = subprocess.run(args, input=stdin, cwd=cwd, capture_output=True, text=True, encoding="utf-8", timeout=timeout, shell=os.name == "nt")
+            rc, out = r.returncode, (r.stdout or "") + (r.stderr or "")
+        except subprocess.TimeoutExpired:
+            rc, out = 124, "timeout"
+        if rc == 0 or attempt == tries or not any(t in out.lower() for t in TRANSIENT):
+            return rc, out
+        time.sleep(10 * attempt)
+    return rc, out
 
 
 def vercel_project_dir(project: str) -> str:
@@ -101,14 +113,18 @@ def migrate(app: dict) -> None:
     if rc:
         raise RuntimeError(f"vercel redeploy: {out[-300:]}")
     print("    production redeployed")
+    status = None
     for attempt in range(12):
-        r = requests.get(app["check"], headers={"authorization": f"Bearer {new}", "user-agent": "masen-cron-migrate"}, timeout=120)
-        if ok(r.status_code, app["expect"]):
-            print(f"    check {r.status_code} with the new secret")
+        try:
+            status = requests.get(app["check"], headers={"authorization": f"Bearer {new}", "user-agent": "masen-cron-migrate"}, timeout=120).status_code
+        except requests.RequestException:
+            status = None
+        if status is not None and ok(status, app["expect"]):
+            print(f"    check {status} with the new secret")
             break
         time.sleep(20)
     else:
-        raise RuntimeError(f"check still {r.status_code} after redeploy — old schedules left enabled")
+        raise RuntimeError(f"check still {status} after redeploy — old schedules left enabled")
     for wf in app["workflows"]:
         rc, out = sh(["gh", "workflow", "disable", wf, "-R", f"{OWNER}/{app['repo']}"])
         print(f"    {wf}: {'disabled' if rc == 0 else 'NOT disabled: ' + out[-120:]}")
