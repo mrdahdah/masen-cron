@@ -29,7 +29,8 @@ async function call(t) {
   const headers = { "user-agent": "masen-cron" };
   if (t.secret) {
     const v = process.env[t.secret];
-    if (!v) return { name: t.name, ok: false, line: `${t.name} skipped: secret ${t.secret} not set` };
+    // not migrated yet (or secret removed): a visible warning, not a red run
+    if (!v) return { name: t.name, ok: true, line: `::warning::${t.name} skipped: secret ${t.secret} not set` };
     headers.authorization = `Bearer ${v}`;
   }
   const t0 = Date.now();
