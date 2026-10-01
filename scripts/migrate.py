@@ -98,8 +98,9 @@ def migrate(app: dict) -> None:
     d = vercel_project_dir(app["project"])
     for target in app["targets"]:
         sh(["vercel", "env", "rm", "CRON_SECRET", target, "--yes", "--scope", TEAM], cwd=d)
-        rc, out = sh(["vercel", "env", "add", "CRON_SECRET", target, "--sensitive", "--scope", TEAM] if target != "development"
-                     else ["vercel", "env", "add", "CRON_SECRET", target, "--scope", TEAM], stdin=new, cwd=d)
+        # --yes: a project with branch-scoped Preview vars otherwise prompts for a Git branch (default = all branches)
+        rc, out = sh(["vercel", "env", "add", "CRON_SECRET", target, "--yes", "--scope", TEAM] + (["--sensitive"] if target != "development" else []),
+                     stdin=new, cwd=d)
         if rc:
             raise RuntimeError(f"vercel env add {target}: {out[-200:]}")
         print(f"    Vercel CRON_SECRET [{target}] set")
