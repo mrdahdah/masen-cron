@@ -1,0 +1,24 @@
+name: keepalive
+
+# GitHub disables scheduled workflows of a public repo after 60 days without commits. A monthly heartbeat commit keeps the
+# ticker alive.
+on:
+  schedule:
+    - cron: "0 3 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          date -u +%Y-%m-%dT%H:%M:%SZ > .heartbeat
+          git config user.name "masen-cron"
+          git config user.email "masen-cron@users.noreply.github.com"
+          git add .heartbeat
+          git commit -m "chore: heartbeat" && git push

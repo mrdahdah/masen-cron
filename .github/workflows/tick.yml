@@ -1,0 +1,38 @@
+name: tick
+
+# Public repo: GitHub Actions minutes are free. One 10-minute ticker replaces the per-app schedulers that consumed the private
+# repos' 2,000 included minutes. Secrets are repo secrets (never printed); logs show status codes only.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Call one target now (name from targets.json); empty = the targets due in this slot"
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tick
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Call due targets
+        env:
+          REACH_CRON_SECRET: ${{ secrets.REACH_CRON_SECRET }}
+          LYNK_CRON_SECRET: ${{ secrets.LYNK_CRON_SECRET }}
+          NEXUS_CRON_SECRET: ${{ secrets.NEXUS_CRON_SECRET }}
+          VYSON_CRON_SECRET: ${{ secrets.VYSON_CRON_SECRET }}
+          CONTYQ_CRON_SECRET: ${{ secrets.CONTYQ_CRON_SECRET }}
+          ONLY: ${{ inputs.only }}
+        run: node tick.mjs

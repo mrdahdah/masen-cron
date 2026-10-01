@@ -1,0 +1,13 @@
+{
+  "$comment": "Scheduled HTTP ticks of the Masen apps, moved here from their private repos (public repo = free Actions minutes). every = minutes between calls (multiple of 10, the ticker's period); hours = UTC window [from, to]; weekdays = Mon-Fri only. secret = name of the repo secret sent as 'Authorization: Bearer'. Bodies are never logged.",
+  "targets": [
+    { "name": "reach-uptime", "url": "https://masen-reach.vercel.app/api/health", "every": 20, "expect": "2xx", "contains": "\"ok\":true" },
+    { "name": "reach-autopilot", "url": "https://masen-reach.vercel.app/api/cron/autopilot", "secret": "REACH_CRON_SECRET", "every": 10, "hours": [6, 19], "weekdays": true, "expect": "2xx" },
+    { "name": "reach-ai-check", "url": "https://masen-reach.vercel.app/api/cron/ai-check", "secret": "REACH_CRON_SECRET", "every": 1440, "at": "06:10", "expect": "200" },
+    { "name": "lynk-research", "url": "https://lynk-masen.vercel.app/api/cron", "secret": "LYNK_CRON_SECRET", "every": 60, "expect": "2xx" },
+    { "name": "nexus-routines", "url": "https://nexus-cmpos.vercel.app/api/cron/routines", "secret": "NEXUS_CRON_SECRET", "every": 60, "expect": "200" },
+    { "name": "vyson-projections", "url": "https://vyson.vercel.app/api/cron/projections", "secret": "VYSON_CRON_SECRET", "every": 30, "expect": "200" },
+    { "name": "vyson-reminders", "url": "https://vyson.vercel.app/api/cron/reminders", "secret": "VYSON_CRON_SECRET", "every": 1440, "at": "06:00", "weekdays": true, "expect": "200" },
+    { "name": "contyq-ingest", "url": "https://contyq.vercel.app/api/cron/ingest", "secret": "CONTYQ_CRON_SECRET", "every": 120, "expect": "2xx" }
+  ]
+}
