@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       only:
-        description: "Call one target now (name from targets.json); empty = the targets due in this slot"
+        description: "Call one target now (name from targets.json), * = every target once; empty = the targets due in this slot"
         required: false
 
 permissions:
