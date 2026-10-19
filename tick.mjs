@@ -1,6 +1,7 @@
 // Masen cron ticker. Runs every 10 minutes from .github/workflows/tick.yml and calls the targets that are due in this 10-minute
 // slot (targets.json). Prints one line per call: name, HTTP status, duration. Response bodies are never printed (public logs).
 // Exit 1 when a due target fails, so a broken endpoint shows as a red run. `node tick.mjs --all` calls every target once (manual check).
+// Dry run: `TICK_AT_MS=<epoch ms> node tick.mjs --dry` prints the targets due at that instant without calling anything.
 import { readFileSync } from "node:fs";
 import { SLOT, isDue, slotStartOf } from "./schedule.mjs";
 
@@ -36,6 +37,10 @@ async function call(t) {
 
 const list = targets.filter((t) => isDue(t, now, { only, all }));
 console.log(`${now.toISOString()} slot ${String(Math.floor(slotStart / 60)).padStart(2, "0")}:${String(slotStart % 60).padStart(2, "0")} UTC · ${list.length} due`);
+if (process.argv.includes("--dry")) {
+  for (const t of list) console.log(`${t.name} (dry run, not called)`);
+  process.exit(0);
+}
 const results = await Promise.all(list.map(call));
 for (const r of results) console.log(r.line);
 process.exitCode = results.some((r) => !r.ok) ? 1 : 0;
