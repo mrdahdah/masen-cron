@@ -29,7 +29,7 @@ Actual cost today: 0 minutes of paid or included credit, since the repo is publi
 GitHub's scheduled workflows are best-effort and heavily throttled on busy slots. Observed gaps between scheduled runs: min 1.6 h, mean 4.5 h, max 9.9 h. Consequences (not credit-related, but important):
 
 - `reach-autopilot` (every 10 min, 06-19 UTC weekdays), `vyson-projections` (30 min), `lynk-research` and `nexus-routines` (60 min) and `contyq-ingest` (120 min) are called a few times a day at most, not at their stated cadence.
-- Targets with `at` (`reach-ai-check` 06:10, `vyson-reminders` 06:00) are called only if a run lands inside that exact 10-minute slot. With about 5 runs a day this is mostly a miss, so each is unreliable as a daily job.
+- Targets with `at` (`reach-ai-check` 06:10, `vyson-reminders` 06:00) are called only if a run lands inside that exact 10-minute slot. With about 5 runs a day this is mostly a miss, so each is unreliable as a daily job. **Fixed on branch `fix/daily-window-2026-10-19`** (see section 7).
 - The old per-app schedulers are disabled (`disabled_manually`): Lynk research, Reach ai-check / autopilot / uptime, Nexus agents-scheduler, Vyson scheduler and Contyq ingest-scheduler. So these jobs now depend on the throttled ticker plus whatever daily Vercel cron each app has.
 
 ## 4. Where credits are actually being spent
@@ -70,6 +70,15 @@ Four of the five apps already have a daily Vercel cron, so a daily floor exists 
 1. Leave masen-cron public and the workflows as they are. Cost is 0, which satisfies the "no credits" rule.
 2. Do not tighten the `tick` cron or add workflows: it cannot beat GitHub's throttling, and 144 nominal runs/day would be 4,320 min/month if the repo ever went private.
 3. Treat Vercel Cron as the source of truth for daily jobs (already present for Reach, Nexus, Vyson, Lynk). For Contyq, add `/api/cron/ingest` or confirm that `/api/cron/daily` replaces it.
-4. Decide per job whether sub-daily cadence is really needed. If yes, either upgrade to a Vercel plan that allows per-minute crons and move them there, or use a free external pinger for the few jobs that need minute-level timing (Reach autopilot, Reach uptime). Keep masen-cron as a backup caller, and widen the `at` logic so a daily job still fires on the first run after its due time (with a last-run marker) instead of only inside one 10-minute slot.
+4. Decide per job whether sub-daily cadence is really needed. If yes, either upgrade to a Vercel plan that allows per-minute crons and move them there, or use a free external pinger for the few jobs that need minute-level timing (Reach autopilot, Reach uptime). Keep masen-cron as a backup caller, and widen the `at` logic so a daily job still fires on the first run after its due time instead of only inside one 10-minute slot (done, section 7; no last-run marker, see the trade-off there).
 5. Fix the Vyson private-repo hourly workflow "Ship when main is not live" (latest run failed, billed against private minutes): lower the frequency, or move it to a push or `workflow_run` trigger. It is the one real consumer of included minutes.
 6. A Windows Task Scheduler entry running `node tick.mjs --only=<name>` is worth it only as a manual fallback.
+
+## 7. Applied fix: daily window for `at` targets (branch `fix/daily-window-2026-10-19`, not pushed)
+
+`tick.mjs` now treats a target with `at` as due on every run where `at <= now < at + windowHours` (default 12 h, clamped to the end of the UTC day; `windowHours: 0` restores the exact slot). With the observed worst gap of 9.9 h, a 12 h window almost always contains at least one run, where the old 10-minute slot contained one only by luck. Workflow schedules are unchanged, and nothing was added that costs minutes, state or commits.
+
+- Trade-off: runs are stateless, so "first run only" cannot be enforced without a cache or a committed marker (both ruled out). With about 5 runs a day, a daily target is typically called 1 to 3 times inside its window. That is safe only for idempotent endpoints.
+- Idempotency check (routes read, nothing run): `reach-ai-check` is a read-only provider probe whose failure notification is deduplicated per UTC day; `vyson-reminders` drains the `notifications` queue and marks each row `sentAt`, so a second call only sends rows that became due since the first. Both keep the 12 h window. A non-idempotent daily target would need `windowHours: 0`; none exists today.
+- The apps' own Vercel crons (Reach ai-check 05:30, Vyson reminders 07:00) still run on their own and are the on-time floor; the ticker is now a late but reliable backup for them.
+- Verification: `node --check` on every `.mjs`, `node --test` (12 tests, including a sparse-run simulation), and `TICK_AT_MS=... node tick.mjs --dry` at 05:55 (0 due), 06:00 (vyson-reminders due, ai-check not yet), 06:30 and 13:20 (both daily targets due), 18:10 (neither, window closed) and a Sunday (ai-check due, reminders skipped).
