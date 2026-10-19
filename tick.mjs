@@ -1,30 +1,16 @@
 // Masen cron ticker. Runs every 10 minutes from .github/workflows/tick.yml and calls the targets that are due in this 10-minute
 // slot (targets.json). Prints one line per call: name, HTTP status, duration. Response bodies are never printed (public logs).
 // Exit 1 when a due target fails, so a broken endpoint shows as a red run. `node tick.mjs --all` calls every target once (manual check).
+// Dry run: `TICK_AT_MS=<epoch ms> node tick.mjs --dry` prints the targets due at that instant without calling anything.
 import { readFileSync } from "node:fs";
+import { SLOT, isDue, slotStartOf } from "./schedule.mjs";
 
-const SLOT = 10; // minutes between ticker runs
 const { targets } = JSON.parse(readFileSync(new URL("./targets.json", import.meta.url), "utf8"));
 const now = new Date(Number(process.env.TICK_AT_MS) || Date.now());
-const minuteOfDay = now.getUTCHours() * 60 + now.getUTCMinutes();
-const slotStart = minuteOfDay - (minuteOfDay % SLOT);
+const slotStart = slotStartOf(now);
 const envOnly = process.env.ONLY?.trim();
 const all = process.argv.includes("--all") || envOnly === "*";
 const only = process.argv.find((a) => a.startsWith("--only="))?.slice(7) || (envOnly !== "*" ? envOnly : "") || undefined;
-
-function due(t) {
-  if (only) return t.name === only;
-  if (all) return true;
-  const dow = now.getUTCDay();
-  if (t.weekdays && (dow === 0 || dow === 6)) return false;
-  if (t.hours && (now.getUTCHours() < t.hours[0] || now.getUTCHours() > t.hours[1])) return false;
-  if (t.at) {
-    const [h, m] = t.at.split(":").map(Number);
-    const at = h * 60 + m;
-    return at >= slotStart && at < slotStart + SLOT;
-  }
-  return slotStart % t.every === 0;
-}
 
 async function call(t) {
   const headers = { "user-agent": "masen-cron" };
@@ -49,8 +35,12 @@ async function call(t) {
   }
 }
 
-const list = targets.filter(due);
+const list = targets.filter((t) => isDue(t, now, { only, all }));
 console.log(`${now.toISOString()} slot ${String(Math.floor(slotStart / 60)).padStart(2, "0")}:${String(slotStart % 60).padStart(2, "0")} UTC · ${list.length} due`);
+if (process.argv.includes("--dry")) {
+  for (const t of list) console.log(`${t.name} (dry run, not called)`);
+  process.exit(0);
+}
 const results = await Promise.all(list.map(call));
 for (const r of results) console.log(r.line);
 process.exitCode = results.some((r) => !r.ok) ? 1 : 0;
