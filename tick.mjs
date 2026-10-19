@@ -8,8 +8,9 @@ const { targets } = JSON.parse(readFileSync(new URL("./targets.json", import.met
 const now = new Date(Number(process.env.TICK_AT_MS) || Date.now());
 const minuteOfDay = now.getUTCHours() * 60 + now.getUTCMinutes();
 const slotStart = minuteOfDay - (minuteOfDay % SLOT);
-const all = process.argv.includes("--all") || process.env.ONLY?.trim() === "*";
-const only = process.argv.find((a) => a.startsWith("--only="))?.slice(7) || (process.env.ONLY?.trim() !== "*" ? process.env.ONLY?.trim() : undefined) || undefined;
+const envOnly = process.env.ONLY?.trim();
+const all = process.argv.includes("--all") || envOnly === "*";
+const only = process.argv.find((a) => a.startsWith("--only="))?.slice(7) || (envOnly !== "*" ? envOnly : "") || undefined;
 
 function due(t) {
   if (only) return t.name === only;

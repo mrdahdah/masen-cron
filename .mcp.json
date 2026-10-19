@@ -1,0 +1,6 @@
+{
+  "mcpServers": {
+    "ux-ui-library": { "type": "http", "url": "https://ux-ui-library.vercel.app/api/mcp" },
+    "stackwise": { "type": "http", "url": "https://stackwisehq.vercel.app/api/mcp" }
+  }
+}
