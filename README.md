@@ -25,3 +25,12 @@ python scripts/migrate.py           # dry run
 
 Rollback for one app: `gh workflow enable <workflow>.yml -R mrdahdah/<repo>` (its secret was updated too, so it works as before),
 then remove the target from `targets.json`.
+
+## Knowledge MCP servers
+`.mcp.json` wires two read-only servers for coding agents: `ux-ui-library` (UI work) and `stackwise` (backend, data, AI). See `CLAUDE.md`.
+
+## Handoff
+### 2026-10-19 fleet pass
+- Simplified the `ONLY` / `--only=` parsing in `tick.mjs` (same behaviour).
+- Added `.mcp.json` and `CLAUDE.md` (knowledge MCP servers).
+- Added `docs/ACTIONS-COST-2026-10-19.md`: Actions-minutes analysis. The repo is public (0 billed minutes), but scheduled runs fire about 5 times a day instead of every 10 minutes. Recommendations are in that file; no schedule or workflow was changed.
